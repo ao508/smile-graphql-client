@@ -19,14 +19,14 @@ To install all app dependencies
 npm install
 ```
 
+Make a copy of [./env/application.properties.EXAMPLE](./env/application.properties.EXAMPLE) and save as `./env/application.properties`.
+
+Fill out the properties in `./env/application.properties`.
+
 To run launch the GraphQL client:
 
 ```
-# set the environment variables you want based on which instance of Neo4j you want to point to
-export NEO4J_USERNAME=${NEO4J_USERNAME}
-export NEO4J_PASSWORD=${NEO4J_PASSWORD}
-export NEO4J_GRAPHQL_URI=bolt://neo4j:7687
-npm run start
+node index.js
 ```
 
 The GraphQL client will be available at `http://localhost:4000` and the Apollo GraphQL can connect at `http://localhost:4000/graphql`
