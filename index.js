@@ -94,14 +94,13 @@ const driver = neo4j.driver(
 );
 
 const sessionFactory = () =>
-  driver.session({ defaultAccessMode: neo4j.session.READ });
+  driver.session({ defaultAccessMode: neo4j.session.WRITE });
 
 // We create a async function here until "top level await" has landed
 // so we can use async/await
 async function main() {
   establishConnection();
-  const readonly = true; // We don't want to expose mutations in this case
-  const typeDefs = await toGraphQLTypeDefs(sessionFactory, readonly);
+  const typeDefs = await toGraphQLTypeDefs(sessionFactory, false);
   const neoSchema = new Neo4jGraphQL({ typeDefs, driver });
 
   const app = express();
