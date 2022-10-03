@@ -12,6 +12,7 @@ const {
   ApolloServerPluginDrainHttpServer,
   ApolloServerPluginLandingPageLocalDefault
 } = require("apollo-server-core");
+const { OGM } = require("@neo4j/graphql-ogm");
 
 // neo4j connection properties
 const neo4j_graphql_uri = properties.get("db.neo4j_graphql_uri");
@@ -55,6 +56,20 @@ async function printMsgs(s) {
   }
 }
 
+
+
+const mutDefs = gql`
+mutation UpdateRequests($update: RequestUpdateInput, $where: RequestWhere) {
+  updateRequests(update: $update, where: $where) {
+    requests {
+      smileRequestId
+      igoRequestId
+      dataStatus
+    }
+  }
+}
+`;
+
 var nc = null;
 async function establishConnection() {
   try {
@@ -96,35 +111,61 @@ const driver = neo4j.driver(
 const sessionFactory = () =>
   driver.session({ defaultAccessMode: neo4j.session.WRITE });
 
+  // const resolvers = {
+  //   Mutation: {
+  //     updateRequestStatus: async (_source, {requestId, dataStatus}) => {
+  //       const { x } = await Request.update({
+  //         where: {
+  //           "igoRequestId": requestId
+  //         },
+  //         update: {
+  //           "dataStatus": dataStatus
+  //         }
+  //       });
+  //       console.log(x)
+  //       return x;
+  //     } 
+  //   }
+  // }
+
 // We create a async function here until "top level await" has landed
 // so we can use async/await
 async function main() {
   establishConnection();
   const typeDefs = await toGraphQLTypeDefs(sessionFactory, false);
   const neoSchema = new Neo4jGraphQL({ typeDefs, driver });
+  const ogm = new OGM({typeDefs, driver});
+  ogm.init();
+  const Request = ogm.model("Request");
 
   const app = express();
-  // now attempting http POST
+
+  
   app.use(bodyParser.urlencoded({ extended: true }));
-  app.post("/publishSmileUpdates", (req, res) => {
-    // validate request body
-    var validMsg = true;
-    if (req.body.topic === undefined) {
-      console.error("request body missing 'topic'");
-      validMsg = false;
-    }
-    if (req.body.message === undefined) {
-      console.error("request body missing 'message'");
-      validMsg = false;
-    }
-    if (!validMsg) {
-      res.sendStatus(500, "missing topic and/or message in request body");
-    } else {
-      res.sendStatus(200);
-      nc.publish(req.body.topic, sc.encode(req.body.message));
-      // TODO: SET REQUEST STATE TO PENDING
-    }
-  });
+
+  // endpoint for updating status of a given request
+  app.post("/requestStatus", async (req,res) => {
+    // cant seem to be able to query successfuly for some reason even though the 
+    // status in the database is being updated to whatever I'm sending to the api
+    // see docs here https://neo4j.com/docs/graphql-manual/current/ogm/examples/custom-resolvers/
+    console.log("querying by: ", req.body.requestId);
+    const { r } = await Request.find({
+      where: {
+        "igoRequestId": req.body.requestId
+      }
+    });
+    
+
+    const { x } = await Request.update({
+      where: {
+        "igoRequestId": req.body.requestId
+      },
+      update: {
+        "dataStatus": req.body.dataStatus
+      }
+    });
+    return res.sendStatus(200);
+  })
 
   const httpServer = http.createServer(app);
   const server = new ApolloServer({
@@ -135,6 +176,7 @@ async function main() {
       ApolloServerPluginLandingPageLocalDefault({ embed: true })
     ]
   });
+  
 
   neoSchema.getSchema().then(schema => {
     const server = new ApolloServer({
